@@ -816,14 +816,11 @@ bool matroska_script_interpretor_c::Interpret(
               script.size() > 120 ? "..." : "");
 
     Lexer lex(script);
-    bool result = false;
 
-    // A script is a sequence of labeled blocks.
-    // Execute blocks in order; stop when a GotoAndPlay fires.
-    while (lex.peek().type != TokType::Eof) {
-        result = execBlock(lex);
-        if (result) break;
-    }
+    // Execute only the first (entry) block.
+    // Secondary blocks (sg_*, opt_*) are only reachable via dispatchBlock().
+    // This prevents sequential execution of all blocks in the script.
+    bool result = execBlock(lex);
 
     return result;
 }
