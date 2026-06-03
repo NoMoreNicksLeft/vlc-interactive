@@ -762,13 +762,10 @@ bool matroska_script_interpretor_c::execMenu(Lexer & lex)
         return doGoto(chosen.uid);
     }
 
-    // Block label callable — we need to find and execute the named block
-    // The block should be defined later in the same script.
-    // We store the block name for execBlock to find via label scanning.
-    // For now, log and return false (block dispatch not yet implemented).
-    vlc_debug(l, "MKVScript: Menu block callable '%s' (not yet dispatched)",
+    // Block label callable — dispatch to named block in current script
+    vlc_debug(l, "MKVScript: Menu dispatching to block '%s'",
               chosen.block_label.c_str());
-    return false;
+    return dispatchBlock(chosen.block_label);
 }
 
 // Panic("message");
@@ -812,6 +809,7 @@ bool matroska_script_interpretor_c::Interpret(
     size_t i_size)
 {
     std::string script(reinterpret_cast<const char*>(p_command), i_size);
+    current_script = script;  // make available for block dispatch
     vlc_info(l, "MKVScript: executing (%s): %.120s%s",
               time == MATROSKA_CHAPPROCESSTIME_BEFORE ? "enter" : "leave",
               script.c_str(),
@@ -828,6 +826,61 @@ bool matroska_script_interpretor_c::Interpret(
     }
 
     return result;
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Block dispatch — find a named block in current_script and execute it
+// ─────────────────────────────────────────────────────────────────────────────
+
+bool matroska_script_interpretor_c::dispatchBlock(const std::string & label)
+{
+    if (current_script.empty()) {
+        vlc_debug(l, "MKVScript: dispatchBlock('%s'): no current script", label.c_str());
+        return false;
+    }
+
+    // Scan the script for "label:" pattern
+    // We look for the label as a whole word followed by ':'
+    Lexer scanner(current_script);
+    while (scanner.peek().type != TokType::Eof) {
+        Token t = scanner.next();
+        if (t.type == TokType::Ident && t.text == label) {
+            Token colon = scanner.peek();
+            if (colon.type == TokType::Colon) {
+                scanner.next(); // consume ':'
+                // Now expect '{' and execute the block body
+                if (scanner.peek().type != TokType::LBrace) {
+                    vlc_debug(l, "MKVScript: dispatchBlock('%s'): expected '{' after label",
+                              label.c_str());
+                    return false;
+                }
+                scanner.next(); // consume '{'
+                vlc_debug(l, "MKVScript: dispatchBlock('%s'): executing", label.c_str());
+
+                // Execute statements until '}'
+                while (scanner.peek().type != TokType::RBrace &&
+                       scanner.peek().type != TokType::Eof) {
+                    bool jumped = execStmt(scanner);
+                    if (jumped) {
+                        // Drain rest of block
+                        int depth = 1;
+                        while (depth > 0 && scanner.peek().type != TokType::Eof) {
+                            Token d = scanner.next();
+                            if (d.type == TokType::LBrace) ++depth;
+                            else if (d.type == TokType::RBrace) --depth;
+                        }
+                        return true;
+                    }
+                }
+                if (scanner.peek().type == TokType::RBrace) scanner.next();
+                return false;
+            }
+        }
+    }
+
+    vlc_debug(l, "MKVScript: dispatchBlock('%s'): label not found in script", label.c_str());
+    return false;
 }
 
 } // namespace mkv

@@ -61,6 +61,9 @@ public:
     // Variables are initialized to 0 on first access (default-constructed int64)
     std::unordered_map<std::string, int64_t> vars;
 
+    // Current script text — set during Interpret(), used for block dispatch
+    std::string current_script;
+
 private:
     // ── Tokenizer ─────────────────────────────────────────────────────────────
     struct Lexer {
@@ -90,6 +93,7 @@ private:
     bool execGoto    ( Lexer & lex );
     bool execPanic   ( Lexer & lex );
     bool execLog     ( Lexer & lex );
+    bool dispatchBlock( const std::string & label );  // find and execute a named block
     bool execStmtWithIdent( Lexer & lex, Token ident );
 
     int64_t evalExpr ( Lexer & lex );           // arithmetic / boolean expression
