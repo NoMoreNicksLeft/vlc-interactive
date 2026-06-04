@@ -817,6 +817,45 @@ static int Demux( demux_t *p_demux)
 
     vlc_mutex_locker demux_lock ( &p_sys->lock_demuxer );
 
+    // ── Non-blocking menu poll ────────────────────────────────────────────────
+    // If a Menu() is active, stall data production and wait for user input.
+    // Nav events arrive via Control() → SendEventNav() → HandleNavEvent()
+    // between Demux() calls (the input thread processes controls between calls).
+    {
+        auto ms_interp = p_sys->GetMatroskaScriptInterpreterIfExists();
+        if (ms_interp) {
+            std::unique_lock<std::mutex> lk(ms_interp->menu_state.mtx);
+            if (ms_interp->menu_state.active) {
+                bool confirmed = ms_interp->menu_state.confirmed;
+                bool timed_out = ms_interp->menu_state.has_deadline &&
+                                 std::chrono::steady_clock::now() >= ms_interp->menu_state.deadline;
+                bool osd_dirty = ms_interp->menu_state.osd_dirty;
+                lk.unlock();
+                msg_Dbg( p_demux, "MKVScript: Demux menu poll: confirmed=%d timed_out=%d",
+                         (int)confirmed, (int)timed_out );
+
+                // Redraw OSD if selection changed (safe here — demux thread)
+                if( osd_dirty ) {
+                    ms_interp->renderMenuOSD();
+                    std::unique_lock<std::mutex> lk2(ms_interp->menu_state.mtx);
+                    ms_interp->menu_state.osd_dirty = false;
+                }
+                // Try to dispatch — returns false if still waiting
+                bool jumped = ms_interp->DispatchMenuResult();
+                if (jumped) {
+                    // Reset PCR after menu jump — the 20ms sleeps during
+                    // polling accumulate clock drift that freezes video.
+                    es_out_Control( p_sys->demuxer.out, ES_OUT_RESET_PCR );
+                    return VLC_DEMUXER_SUCCESS;
+                }
+                // Still waiting: return without producing data
+                // Sleep briefly to avoid busy-spinning
+                vlc_tick_sleep(VLC_TICK_FROM_MS(20));
+                return VLC_DEMUXER_SUCCESS;
+            }
+        }
+    }
+
     virtual_segment_c  *p_vsegment = p_sys->GetCurrentVSegment();
 
     if( p_sys->i_pts >= p_sys->i_start_pts )
@@ -902,6 +941,11 @@ static int Demux( demux_t *p_demux)
     {
         p_sys->i_pts = p_sys->i_mk_chapter_time + VLC_TICK_0;
         p_sys->i_pts += VLC_TICK_FROM_NS(internal_block.GlobalTimestamp());
+        if( !p_sys->b_playback_started )
+            msg_Dbg( p_demux, "MKVScript: first block pts=%.3fs mk_chapter_time=%.3fs global_ts=%.3fs",
+                     (p_sys->i_pts - VLC_TICK_0) / 1e6,
+                     p_sys->i_mk_chapter_time / 1e6,
+                     VLC_TICK_FROM_NS(internal_block.GlobalTimestamp()) / 1e6 );
     }
 
     if ( p_vsegment->CurrentEdition() &&
@@ -914,6 +958,7 @@ static int Demux( demux_t *p_demux)
         return VLC_DEMUXER_EOF;
     }
 
+    p_sys->b_playback_started = true;
     BlockDecode( p_demux, block, simpleblock, additions,
                  p_sys->i_pts, i_block_duration, b_key_picture, b_discardable_picture );
 

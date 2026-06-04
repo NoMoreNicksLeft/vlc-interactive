@@ -25,6 +25,7 @@
 #include "demux.hpp"
 #include "events.hpp"
 #include "chapter_command_dvd.hpp"
+#include "chapter_command_script.hpp"
 
 #include <vlc_threads.h>
 
@@ -97,9 +98,9 @@ int event_thread_t::SendEventNav( demux_query_e nav_query )
         return VLC_ENOTSUP;
     }
 
-    if( !is_running )
-        return VLC_EGENERIC;
-
+    // Call HandleKeyEvent directly — the event thread may not be running
+    // (it only starts for DVD VOB tracks), but nav handling works without it.
+    msg_Dbg( p_demux, "MKVScript: SendEventNav called key=%d", (int)key );
     if ( !HandleKeyEvent( key ) )
         return VLC_EGENERIC;
 
@@ -167,6 +168,27 @@ bool event_thread_t::HandleKeyEvent( NavivationKey key )
 {
     demux_sys_t* p_sys = (demux_sys_t*)p_demux->p_sys;
 
+    // Check native script interpreter FIRST, WITHOUT holding lock_demuxer.
+    // The demuxer thread may be blocking inside execMenu() holding lock_demuxer
+    // while waiting on menu_state.cv. If we acquire lock_demuxer here before
+    // calling HandleNavEvent, we deadlock. HandleNavEvent uses its own mutex.
+    {
+        // Peek at ms_interpreter pointer without lock — safe because
+        // GetMatroskaScriptInterpreter() only writes the unique_ptr once
+        // and we only read the raw pointer here.
+        auto ms_interp = p_sys->GetMatroskaScriptInterpreterIfExists();
+        if (ms_interp) {
+            bool up       = (key == NavivationKey::UP);
+            bool activate = (key == NavivationKey::OK);
+            bool nav      = (key == NavivationKey::UP || key == NavivationKey::DOWN);
+            if (nav || activate) {
+                if (ms_interp->HandleNavEvent(up, activate))
+                    return true;
+            }
+        }
+    }
+
+    // Fall through to DVD interpreter (requires lock_demuxer)
     vlc_mutex_locker demux_lock ( &p_sys->lock_demuxer );
 
     auto interpretor = p_sys->GetDVDInterpretor();

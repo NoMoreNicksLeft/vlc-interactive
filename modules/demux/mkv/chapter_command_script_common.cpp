@@ -20,7 +20,7 @@ bool matroska_script_codec_common_c::Enter()
     {
         if ( (*index).GetSize() )
         {
-            vlc_debug( l, "Matroska Script enter command" );
+            vlc_info( l, "MKVScript: ENTER COMMAND FIRED" );
             f_result |= get_interpreter().Interpret( MATROSKA_CHAPPROCESSTIME_BEFORE, (*index).GetBuffer(), (*index).GetSize() );
         }
         ++index;
@@ -36,7 +36,7 @@ bool matroska_script_codec_common_c::Leave()
     {
         if ( (*index).GetSize() )
         {
-            vlc_debug( l, "Matroska Script leave command" );
+            vlc_info( l, "MKVScript: LEAVE COMMAND FIRED" );
             f_result |= get_interpreter().Interpret( MATROSKA_CHAPPROCESSTIME_AFTER, (*index).GetBuffer(), (*index).GetSize() );
         }
         ++index;

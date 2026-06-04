@@ -1109,6 +1109,11 @@ bool matroska_segment_c::ESCreate()
         {
             track.p_es = es_out_Add( sys.demuxer.out, &track.fmt );
 
+            // Capture first video ES for OSD overlay use
+            if( track.p_es && track.fmt.i_cat == VIDEO_ES
+                && sys.p_video_es == nullptr )
+                sys.p_video_es = track.p_es;
+
             if( track.p_es &&
                 !sys.ev.AddTrack( track ) )
             {
@@ -1141,6 +1146,16 @@ bool matroska_segment_c::ESCreate()
 void matroska_segment_c::ESDestroy( )
 {
     sys.ev.AbortThread();
+
+    // Invalidate video ES pointer — the ES objects are about to be deleted
+    if( sys.p_video_es != nullptr ) {
+        for( tracks_map_t::iterator it = tracks.begin(); it != tracks.end(); ++it )
+            if( it->second->p_es == sys.p_video_es ) {
+                sys.p_video_es = nullptr;
+                sys.i_menu_overlay_id = SIZE_MAX;
+                break;
+            }
+    }
 
     for( tracks_map_t::iterator it = tracks.begin(); it != tracks.end(); ++it )
     {

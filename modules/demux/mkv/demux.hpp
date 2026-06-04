@@ -124,6 +124,11 @@ public:
         return dvd_interpretor.get();
     }
 
+    matroska_script_interpretor_c * GetMatroskaScriptInterpreterIfExists()
+    {
+        return ms_interpreter.get();
+    }
+
     matroska_script_interpretor_c * GetMatroskaScriptInterpreter()
     {
         if (!ms_interpreter)
@@ -139,6 +144,15 @@ public:
 
     uint8_t        palette[4][4];
     vlc_mutex_t    lock_demuxer;
+
+    /* Set to true after the first block is decoded. Chapter entry/leave
+     * scripts must not fire before this point — the demuxer processes
+     * chapters during open/seek before any video has rendered. */
+    bool            b_playback_started = false;
+
+    /* Video ES for OSD overlay (set when first video track is added) */
+    es_out_id_t    *p_video_es = nullptr;
+    size_t          i_menu_overlay_id = SIZE_MAX; // ES_OUT_VOUT_ADD_OVERLAY channel
 
     /* event */
     event_thread_t ev;

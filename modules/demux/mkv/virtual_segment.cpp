@@ -23,8 +23,8 @@
  *****************************************************************************/
 
 #include "virtual_segment.hpp"
-
-#include <new>
+#include "chapter_command_script.hpp"
+#include "demux.hpp"
 
 namespace mkv {
 
@@ -431,6 +431,12 @@ bool virtual_segment_c::UpdateCurrentToChapter( demux_t & demux )
 
     if ( !b_current_vchapter_entered && p_current_vchapter != NULL )
     {
+        if ( !sys.b_playback_started )
+            return false; // don't fire entry scripts before first block decoded
+        msg_Dbg( &demux, "MKVScript: UpdateCurrentToChapter entry: i_pts=%.3fs current_vchap_start=%.3fs current_vchap_stop=%.3fs",
+                  (sys.i_pts - VLC_TICK_0) / 1e6,
+                  p_current_vchapter->i_mk_virtual_start_time / 1e6,
+                  p_current_vchapter->i_mk_virtual_stop_time / 1e6 );
         b_current_vchapter_entered = true;
         if (p_current_vchapter->Enter( true ))
             return true;
@@ -442,11 +448,25 @@ bool virtual_segment_c::UpdateCurrentToChapter( demux_t & demux )
             p_cur_vchapter = p_current_vchapter;
         else if (p_cur_vedition != NULL)
             p_cur_vchapter = p_cur_vedition->getChapterbyTimecode( sys.i_pts - VLC_TICK_0 );
+
+        msg_Dbg( &demux, "MKVScript: timecode lookup: i_pts=%.3fs -> p_cur_vchapter=%s p_current_vchapter=%s match=%d",
+                  (sys.i_pts - VLC_TICK_0) / 1e6,
+                  p_cur_vchapter ? "found" : "null",
+                  p_current_vchapter ? "set" : "null",
+                  p_cur_vchapter == p_current_vchapter );
     }
 
     /* we have moved to a new chapter */
     if ( p_cur_vchapter != NULL && p_current_vchapter != p_cur_vchapter )
     {
+        // If a menu is waiting for user input, don't advance chapters yet.
+        // Demux() will stall and poll until the menu resolves.
+        auto ms_interp = sys.GetMatroskaScriptInterpreterIfExists();
+        if (ms_interp) {
+            std::unique_lock<std::mutex> lk(ms_interp->menu_state.mtx);
+            if (ms_interp->menu_state.active)
+                return false;
+        }
         msg_Dbg( &demux, "New Chapter %" PRId64 " uid=%" PRIu64, sys.i_pts - VLC_TICK_0,
                  p_cur_vchapter->p_chapter ? p_cur_vchapter->p_chapter->i_uid : 0 );
         if ( p_cur_vedition->b_ordered )

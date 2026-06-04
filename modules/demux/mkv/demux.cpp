@@ -26,6 +26,7 @@
 #include "stream_io_callback.hpp"
 #include "Ebml_parser.hpp"
 #include "virtual_segment.hpp"
+#include "chapter_command_script.hpp"
 
 namespace mkv {
 
@@ -322,9 +323,22 @@ bool demux_sys_t::PreparePlayback( virtual_segment_c & new_vsegment )
 
 void demux_sys_t::JumpTo( virtual_segment_c & vsegment, virtual_chapter_c & vchapter )
 {
-    if ( !vchapter.p_chapter || !vchapter.p_chapter->Enter( true ) )
+    // Don't run entry scripts during JumpTo if a menu is pending —
+    // UpdateCurrentToChapter will fire them on the next Demux() call.
+    auto ms_interp = GetMatroskaScriptInterpreterIfExists();
+    bool menu_active = ms_interp && [&]{
+        std::unique_lock<std::mutex> lk(ms_interp->menu_state.mtx);
+        return ms_interp->menu_state.active;
+    }();
+
+    if ( !menu_active &&
+         ( !vchapter.p_chapter || !vchapter.p_chapter->Enter( true ) ) )
     {
         // jump to the location in the found segment
+        vsegment.Seek( demuxer, vchapter.i_mk_virtual_start_time, &vchapter );
+    }
+    else if ( menu_active )
+    {
         vsegment.Seek( demuxer, vchapter.i_mk_virtual_start_time, &vchapter );
     }
 }
