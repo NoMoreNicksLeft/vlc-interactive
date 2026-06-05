@@ -174,8 +174,6 @@ bool matroska_script_interpretor_c::HandleNavEvent( bool up, bool activate )
 
 bool matroska_script_interpretor_c::DispatchMenuResult()
 {
-    // Called from Demux() while holding lock_demuxer.
-    // Check if the menu is resolved (confirmed by user or timed out).
     size_t chosen;
     {
         std::unique_lock<std::mutex> lk(menu_state.mtx);
@@ -189,7 +187,8 @@ bool matroska_script_interpretor_c::DispatchMenuResult()
             return false;  // still waiting
 
         chosen = menu_state.selected;
-        menu_state.active    = false;
+        // NOTE: leave active = true here — JumpTo checks it to suppress
+        // premature Enter() calls. We clear it after the jump below.
         menu_state.confirmed = false;
     }
 
@@ -197,7 +196,16 @@ bool matroska_script_interpretor_c::DispatchMenuResult()
              chosen + 1, menu_state.options[chosen].label.c_str());
 
     clearMenuOSD();
-    return dispatchCallable(menu_state.options[chosen]);
+    bool jumped = dispatchCallable(menu_state.options[chosen]);
+
+    // Now safe to clear active — JumpTo has already run
+    {
+        std::unique_lock<std::mutex> lk(menu_state.mtx);
+        menu_state.active       = false;
+        menu_state.jump_pending = true;  // suppress next Enter in UpdateCurrentToChapter
+    }
+
+    return jumped;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -460,12 +460,20 @@ bool virtual_segment_c::UpdateCurrentToChapter( demux_t & demux )
     if ( p_cur_vchapter != NULL && p_current_vchapter != p_cur_vchapter )
     {
         // If a menu is waiting for user input, don't advance chapters yet.
-        // Demux() will stall and poll until the menu resolves.
         auto ms_interp = sys.GetMatroskaScriptInterpreterIfExists();
         if (ms_interp) {
             std::unique_lock<std::mutex> lk(ms_interp->menu_state.mtx);
             if (ms_interp->menu_state.active)
                 return false;
+            // A jump just fired from DispatchMenuResult — suppress the
+            // immediate EnterAndLeave so the entry script fires on the
+            // *next* Demux() iteration once the demuxer has settled.
+            if (ms_interp->menu_state.jump_pending) {
+                ms_interp->menu_state.jump_pending = false;
+                p_current_vchapter = p_cur_vchapter;
+                b_current_vchapter_entered = false;
+                return false;
+            }
         }
         msg_Dbg( &demux, "New Chapter %" PRId64 " uid=%" PRIu64, sys.i_pts - VLC_TICK_0,
                  p_cur_vchapter->p_chapter ? p_cur_vchapter->p_chapter->i_uid : 0 );

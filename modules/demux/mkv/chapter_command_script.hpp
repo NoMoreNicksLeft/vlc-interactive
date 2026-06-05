@@ -54,6 +54,7 @@ struct MenuState {
     bool     active      = false;     // true while waiting for input
     bool     confirmed   = false;     // set by HandleNavEvent when user activates
     bool     osd_dirty   = false;     // set when selection changes, cleared after render
+    bool     jump_pending = false;    // set after dispatch, cleared after UpdateCurrentToChapter runs
 
     // Non-blocking: deadline for timeout (set when menu becomes active)
     std::chrono::steady_clock::time_point deadline;
