@@ -1541,6 +1541,12 @@ void matroska_segment_c::ParseAttachments( KaxAttachments *attachments )
         try {
             KaxFileData  &img_data     = GetMandatoryChild<KaxFileData>( *attachedFile );
             std::string attached_filename( UTFstring( GetMandatoryChild<KaxFileName>( *attachedFile ) ).GetUTF8() );
+
+            // Store UID -> filename mapping for attach(N) resolution in MKVScript
+            KaxFileUID *p_fuid = FindChild<KaxFileUID>( *attachedFile );
+            if( p_fuid )
+                sys.attachment_uid_map[ static_cast<uint64_t>( *p_fuid ) ] = attached_filename;
+
             auto new_attachment = vlc_input_attachment_New( attached_filename.c_str(),
                                                             GetMandatoryChild<KaxMimeType>( *attachedFile ).GetValue().c_str(),
                                                             nullptr,

@@ -579,6 +579,7 @@ bool matroska_script_interpretor_c::execStmt(Lexer & lex)
         if (kw == "Menu")        return execMenu(lex);
         if (kw == "Panic")       return execPanic(lex);
         if (kw == "Log")         return execLog(lex);
+        if (kw == "SetFont")     return execSetFont(lex);
         if (kw == "if")          return execIf(lex);
         return execBlock(lex);
     }
@@ -892,6 +893,50 @@ bool matroska_script_interpretor_c::execLog(Lexer & lex)
     if (!expect(lex, TokType::RParen, "Log")) return false;
     if (lex.peek().type == TokType::Semicolon) lex.next();
     vlc_info(l, "MKVScript: LOG: %s", text.c_str());
+    return false;
+}
+
+bool matroska_script_interpretor_c::execSetFont(Lexer & lex)
+{
+    // SetFont(attach(N))  — set OSD font by attachment UID
+    // SetFont("name")     — set OSD font by name (informational; renderer uses if available)
+    // May appear at most once per file; if called again, last call wins.
+    lex.next(); // consume 'SetFont'
+    if (!expect(lex, TokType::LParen, "SetFont")) return false;
+
+    demux_sys_t & sys = static_cast<demux_sys_t &>(vm);
+    Token t = lex.peek();
+
+    if (t.type == TokType::Ident && t.text == "attach") {
+        // SetFont(attach(N))
+        lex.next();
+        if (!expect(lex, TokType::LParen, "attach")) return false;
+        int64_t uid = evalExpr(lex);
+        if (!expect(lex, TokType::RParen, "attach")) return false;
+
+        auto it = sys.attachment_uid_map.find((uint64_t)uid);
+        if (it != sys.attachment_uid_map.end()) {
+            sys.s_osd_font_name = it->second;
+            vlc_info(l, "MKVScript: SetFont(attach(%" PRId64 ")) -> \"%s\"",
+                     uid, sys.s_osd_font_name.c_str());
+        } else {
+            vlc_info(l, "MKVScript: SetFont(attach(%" PRId64 ")) -> attachment not found, using renderer default",
+                     uid);
+        }
+    } else if (t.type == TokType::StringLit) {
+        // SetFont("FontName")
+        lex.next();
+        sys.s_osd_font_name = t.text;
+        vlc_info(l, "MKVScript: SetFont(\"%s\")", sys.s_osd_font_name.c_str());
+    } else {
+        vlc_info(l, "MKVScript: SetFont: expected attach(N) or string literal");
+        while (lex.peek().type != TokType::RParen &&
+               lex.peek().type != TokType::Eof)
+            lex.next();
+    }
+
+    if (!expect(lex, TokType::RParen, "SetFont")) return false;
+    if (lex.peek().type == TokType::Semicolon) lex.next();
     return false;
 }
 

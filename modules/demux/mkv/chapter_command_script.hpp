@@ -122,6 +122,7 @@ private:
     bool execGoto    ( Lexer & lex );
     bool execPanic   ( Lexer & lex );
     bool execLog     ( Lexer & lex );
+    bool execSetFont  ( Lexer & lex );
     bool dispatchBlock( const std::string & label );
     bool dispatchCallable( const MenuOption & opt );
 

@@ -32,6 +32,8 @@
 #include "events.hpp"
 
 #include <memory>
+#include <string>
+#include <unordered_map>
 
 #include <vlc_threads.h>
 
@@ -153,6 +155,13 @@ public:
     /* Video ES for OSD overlay (set when first video track is added) */
     es_out_id_t    *p_video_es = nullptr;
     size_t          i_menu_overlay_id = SIZE_MAX; // ES_OUT_VOUT_ADD_OVERLAY channel
+
+    /* OSD font: filename of the embedded font attachment to use for menus.
+     * Set by SetFont() in MKVScript; empty = use renderer default. */
+    std::string     s_osd_font_name;
+
+    /* Attachment UID -> filename map, populated during ParseAttachments */
+    std::unordered_map<uint64_t, std::string> attachment_uid_map;
 
     /* event */
     event_thread_t ev;
