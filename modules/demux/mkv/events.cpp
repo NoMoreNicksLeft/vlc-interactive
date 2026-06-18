@@ -178,11 +178,12 @@ bool event_thread_t::HandleKeyEvent( NavivationKey key )
         // and we only read the raw pointer here.
         auto ms_interp = p_sys->GetMatroskaScriptInterpreterIfExists();
         if (ms_interp) {
-            bool up       = (key == NavivationKey::UP);
+            bool prev     = (key == NavivationKey::UP   || key == NavivationKey::LEFT);
+            bool next     = (key == NavivationKey::DOWN || key == NavivationKey::RIGHT);
             bool activate = (key == NavivationKey::OK);
-            bool nav      = (key == NavivationKey::UP || key == NavivationKey::DOWN);
+            bool nav      = prev || next;
             if (nav || activate) {
-                if (ms_interp->HandleNavEvent(up, activate))
+                if (ms_interp->HandleNavEvent(prev, activate))
                     return true;
             }
         }

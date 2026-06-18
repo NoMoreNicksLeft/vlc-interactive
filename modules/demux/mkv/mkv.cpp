@@ -826,13 +826,8 @@ static int Demux( demux_t *p_demux)
         if (ms_interp) {
             std::unique_lock<std::mutex> lk(ms_interp->menu_state.mtx);
             if (ms_interp->menu_state.active) {
-                bool confirmed = ms_interp->menu_state.confirmed;
-                bool timed_out = ms_interp->menu_state.has_deadline &&
-                                 std::chrono::steady_clock::now() >= ms_interp->menu_state.deadline;
                 bool osd_dirty = ms_interp->menu_state.osd_dirty;
                 lk.unlock();
-                msg_Dbg( p_demux, "MKVScript: Demux menu poll: confirmed=%d timed_out=%d",
-                         (int)confirmed, (int)timed_out );
 
                 // Redraw OSD if selection changed (safe here — demux thread)
                 if( osd_dirty ) {
@@ -941,11 +936,6 @@ static int Demux( demux_t *p_demux)
     {
         p_sys->i_pts = p_sys->i_mk_chapter_time + VLC_TICK_0;
         p_sys->i_pts += VLC_TICK_FROM_NS(internal_block.GlobalTimestamp());
-        if( !p_sys->b_playback_started )
-            msg_Dbg( p_demux, "MKVScript: first block pts=%.3fs mk_chapter_time=%.3fs global_ts=%.3fs",
-                     (p_sys->i_pts - VLC_TICK_0) / 1e6,
-                     p_sys->i_mk_chapter_time / 1e6,
-                     VLC_TICK_FROM_NS(internal_block.GlobalTimestamp()) / 1e6 );
     }
 
     if ( p_vsegment->CurrentEdition() &&

@@ -341,6 +341,20 @@ void demux_sys_t::JumpTo( virtual_segment_c & vsegment, virtual_chapter_c & vcha
     {
         vsegment.Seek( demuxer, vchapter.i_mk_virtual_start_time, &vchapter );
     }
+    // Always mark the chapter as not-yet-entered after a script jump so
+    // UpdateCurrentToChapter fires the entry script on the next Demux() call.
+    // This is needed when the jump stays within the same segment (no segment
+    // switch), because Seek() sets p_current_vchapter without going through
+    // the jump_pending path, leaving b_current_vchapter_entered stale.
+    vsegment.b_current_vchapter_entered = false;
+    // Clear jump_pending here too — we've already handled p_current_vchapter
+    // and b_current_vchapter_entered above, so jump_pending is no longer needed
+    // and would otherwise eat the first real chapter transition after the jump
+    // (which is the leave script for the chapter we just jumped into).
+    if (ms_interp) {
+        std::unique_lock<std::mutex> lk(ms_interp->menu_state.mtx);
+        ms_interp->menu_state.jump_pending = false;
+    }
 }
 
 bool demux_sys_t::SegmentIsOpened( const EbmlBinary & uid ) const

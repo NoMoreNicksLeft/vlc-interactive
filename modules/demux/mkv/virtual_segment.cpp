@@ -432,11 +432,14 @@ bool virtual_segment_c::UpdateCurrentToChapter( demux_t & demux )
     if ( !b_current_vchapter_entered && p_current_vchapter != NULL )
     {
         if ( !sys.b_playback_started )
-            return false; // don't fire entry scripts before first block decoded
-        msg_Dbg( &demux, "MKVScript: UpdateCurrentToChapter entry: i_pts=%.3fs current_vchap_start=%.3fs current_vchap_stop=%.3fs",
-                  (sys.i_pts - VLC_TICK_0) / 1e6,
-                  p_current_vchapter->i_mk_virtual_start_time / 1e6,
-                  p_current_vchapter->i_mk_virtual_stop_time / 1e6 );
+            return false;
+        // Don't fire entry script while a menu is waiting for input
+        auto ms_check = sys.GetMatroskaScriptInterpreterIfExists();
+        if (ms_check) {
+            std::unique_lock<std::mutex> lk(ms_check->menu_state.mtx);
+            if (ms_check->menu_state.active)
+                return false;
+        }
         b_current_vchapter_entered = true;
         if (p_current_vchapter->Enter( true ))
             return true;
@@ -449,11 +452,6 @@ bool virtual_segment_c::UpdateCurrentToChapter( demux_t & demux )
         else if (p_cur_vedition != NULL)
             p_cur_vchapter = p_cur_vedition->getChapterbyTimecode( sys.i_pts - VLC_TICK_0 );
 
-        msg_Dbg( &demux, "MKVScript: timecode lookup: i_pts=%.3fs -> p_cur_vchapter=%s p_current_vchapter=%s match=%d",
-                  (sys.i_pts - VLC_TICK_0) / 1e6,
-                  p_cur_vchapter ? "found" : "null",
-                  p_current_vchapter ? "set" : "null",
-                  p_cur_vchapter == p_current_vchapter );
     }
 
     /* we have moved to a new chapter */
@@ -479,9 +477,32 @@ bool virtual_segment_c::UpdateCurrentToChapter( demux_t & demux )
                  p_cur_vchapter->p_chapter ? p_cur_vchapter->p_chapter->i_uid : 0 );
         if ( p_cur_vedition->b_ordered )
         {
-            /* FIXME EnterAndLeave has probably been broken for a long time */
-            // Leave/Enter up to the link point
-            b_has_seeked = p_cur_vchapter->EnterAndLeave( p_current_vchapter );
+            // Instead of EnterAndLeave (which runs Leave then Enter atomically),
+            // we split them so we can check for menu activation between the two.
+            // If the Leave script fires a Menu(), we must not Enter the new chapter
+            // yet — the menu dispatch will JumpTo the correct destination.
+            bool leave_jumped = p_current_vchapter->Leave( false );
+
+            auto ms_post = sys.GetMatroskaScriptInterpreterIfExists();
+            bool menu_activated = false;
+            if (ms_post) {
+                std::unique_lock<std::mutex> lk(ms_post->menu_state.mtx);
+                menu_activated = ms_post->menu_state.active;
+            }
+
+            if ( leave_jumped || menu_activated ) {
+                // Leave caused a jump or activated a menu — don't Enter the new
+                // chapter. Return true so Demux() resets PCR and re-evaluates.
+                if ( menu_activated ) {
+                    // Don't update p_current_vchapter — keep it pointing at the
+                    // chapter whose leave fired the menu, so the demuxer stalls.
+                }
+                return true;
+            }
+
+            // No jump from Leave — now Enter the new chapter.
+            b_has_seeked = p_cur_vchapter->Enter( true );
+
             if ( !b_has_seeked )
             {
                 // only physically seek if necessary
