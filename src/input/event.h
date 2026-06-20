@@ -138,6 +138,15 @@ static inline void input_SendEventSignal(input_thread_t *p_input,
     });
 }
 
+static inline void input_SendEventMenu(input_thread_t *p_input,
+                                       bool menu_active)
+{
+    input_SendEvent(p_input, &(struct vlc_input_event) {
+        .type = INPUT_EVENT_MENU,
+        .menu_active = menu_active
+    });
+}
+
 static inline void input_SendEventState(input_thread_t *p_input, int i_state,
                                         vlc_tick_t state_date)
 {

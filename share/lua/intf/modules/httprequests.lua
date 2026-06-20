@@ -447,6 +447,7 @@ getstatus = function (includecategories)
     s.audiodelay = vlc.player.get_audio_delay()
     s.rate = vlc.player.get_rate()
     s.subtitledelay = vlc.player.get_subtitle_delay()
+    s.interactive_menu_active = vlc.player.is_menu_active()
 
     if item then
         s.length=math.floor(item:duration())

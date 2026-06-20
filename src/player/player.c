@@ -1745,6 +1745,14 @@ vlc_player_IsRecording(vlc_player_t *player)
     return input ? input->recording : false;
 }
 
+bool
+vlc_player_IsMenuActive(vlc_player_t *player)
+{
+    struct vlc_player_input *input = vlc_player_get_input_locked(player);
+
+    return input ? input->menu_active : false;
+}
+
 void
 vlc_player_SetRecordingEnabled(vlc_player_t *player, bool enable,
                                const char *dir_path_)

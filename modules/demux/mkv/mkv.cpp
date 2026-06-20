@@ -451,6 +451,25 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
             *va_arg( args, int * ) = p_sys->i_current_seekpoint;
             return VLC_SUCCESS;
 
+        case DEMUX_GET_MENU_ACTIVE:
+        {
+            // Reports whether an interactive Menu() is currently active and
+            // awaiting a viewer choice, for callers (e.g. the player/REST
+            // status layer) that need to know playback is stalled on input
+            // rather than buffering or otherwise idle. Uses the same
+            // menu_state.mtx/active fields Demux() itself polls every cycle.
+            auto ms_interp = p_sys->GetMatroskaScriptInterpreterIfExists();
+            bool *p_active = va_arg( args, bool * );
+            if( !ms_interp )
+            {
+                *p_active = false;
+                return VLC_SUCCESS;
+            }
+            std::unique_lock<std::mutex> lk( ms_interp->menu_state.mtx );
+            *p_active = ms_interp->menu_state.active;
+            return VLC_SUCCESS;
+        }
+
         case DEMUX_GET_FPS:
             pf = va_arg( args, double * );
             *pf = 0.0;

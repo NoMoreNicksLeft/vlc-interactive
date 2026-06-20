@@ -907,6 +907,22 @@ VLC_API bool
 vlc_player_IsRecording(vlc_player_t *player);
 
 /**
+ * Check if an interactive menu is currently active
+ *
+ * An interactive menu is a branching-video choice point where the demuxer
+ * is waiting on the viewer to make a selection rather than producing data
+ * normally (e.g. a "choose your own adventure" style title).
+ *
+ * @see vlc_player_cbs.on_menu_changed
+ *
+ * @param player locked player instance
+ * @return true if an interactive menu is currently active and awaiting a
+ * viewer choice
+ */
+VLC_API bool
+vlc_player_IsMenuActive(vlc_player_t *player);
+
+/**
  * Enable or disable recording for the current media
  *
  * @note A successful call will trigger the vlc_player_cbs.on_recording_changed
@@ -3170,6 +3186,27 @@ struct vlc_player_cbs
      */
     void (*on_recording_changed)(vlc_player_t *player,
         bool recording, void *data);
+
+    /**
+     * Called when the player's interactive-menu-active state has changed
+     *
+     * An interactive menu is a branching-video choice point (e.g. a
+     * "choose your own adventure" style title) where the demuxer is
+     * waiting on the viewer to make a selection rather than producing
+     * data normally. This is distinct from vlc_player_HasTeletextMenu()/
+     * on_teletext_menu_changed(), which concerns broadcast teletext, and
+     * from disc menus (DVD/Blu-ray), which are navigated via
+     * vlc_player_Navigate() but have no dedicated active/inactive signal.
+     *
+     * @see vlc_player_IsMenuActive()
+     *
+     * @param player locked player instance
+     * @param menu_active true if an interactive menu is currently active
+     * and awaiting a viewer choice
+     * @param data opaque pointer set by vlc_player_AddListener()
+     */
+    void (*on_menu_changed)(vlc_player_t *player,
+        bool menu_active, void *data);
 
     /**
      * Called when the media signal has changed

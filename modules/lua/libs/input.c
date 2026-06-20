@@ -101,6 +101,17 @@ static int vlclua_input_is_playing( lua_State *L )
     return 1;
 }
 
+static int vlclua_player_is_menu_active( lua_State *L )
+{
+    vlc_player_t *player = vlclua_get_player_internal(L);
+
+    vlc_player_Lock(player);
+    bool menu_active = vlc_player_IsMenuActive(player);
+    vlc_player_Unlock(player);
+    lua_pushboolean(L, menu_active);
+    return 1;
+}
+
 static int vlclua_player_get_title_index(lua_State *L)
 {
     vlc_player_t *player = vlclua_get_player_internal(L);
@@ -821,6 +832,7 @@ static int vlclua_input_item_set_meta( lua_State *L )
  *****************************************************************************/
 static const luaL_Reg vlclua_input_reg[] = {
     { "is_playing", vlclua_input_is_playing },
+    { "is_menu_active", vlclua_player_is_menu_active },
     { "item", vlclua_input_item_get_current },
     { "add_subtitle", vlclua_input_add_subtitle_path },
     { "add_subtitle_mrl", vlclua_input_add_subtitle_mrl },

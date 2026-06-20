@@ -122,6 +122,16 @@ enum demux_query_e
      * arg1=double *quality, arg2=double *strength */
     DEMUX_GET_SIGNAL = 0x107,
 
+    /** Checks whether the demuxer is currently waiting on the viewer to
+     * resolve an interactive choice (e.g. a branching-video menu),
+     * rather than playing normally.
+     *
+     * Demuxers that have no such concept should not implement this
+     * control; the caller treats failure the same as "not active".
+     *
+     * arg1= bool * */
+    DEMUX_GET_MENU_ACTIVE,
+
     /** Retrieves the demuxed content type
      * Can fail if the control is not implemented
      *
@@ -374,6 +384,13 @@ VLC_USED static inline int vlc_demux_GetSeekpoint(demux_t *demux, int *seekpoint
 VLC_USED static inline int vlc_demux_GetSignal(demux_t *demux, double *quality, double *strength)
 {
     return demux_Control(demux, DEMUX_GET_SIGNAL, quality, strength);
+}
+
+VLC_USED static inline bool vlc_demux_IsMenuActive(demux_t *demux)
+{
+    bool active = false;
+    demux_Control(demux, DEMUX_GET_MENU_ACTIVE, &active);
+    return active;
 }
 
 VLC_USED static inline int vlc_demux_GetTitle(demux_t *demux, int *title)

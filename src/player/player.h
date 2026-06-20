@@ -78,6 +78,7 @@ struct vlc_player_input
     vlc_tick_t pause_date;
 
     bool recording;
+    bool menu_active;
 
     float signal_quality;
     float signal_strength;

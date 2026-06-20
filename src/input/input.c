@@ -275,6 +275,8 @@ input_thread_t * input_Create( vlc_object_t *p_parent, input_item_t *p_item,
     priv->is_running = false;
     priv->is_stopped = false;
     priv->b_recording = false;
+    priv->b_menu_active = false;
+    priv->i_menu_active_next_check = VLC_TICK_0;
     priv->rate = 1.f;
     TAB_INIT( priv->i_attachment, priv->attachment );
     priv->p_sout   = NULL;
@@ -2625,7 +2627,8 @@ static int UpdateTitleSeekpointFromDemux( input_thread_t *p_input )
 
 static void UpdateGenericFromDemux( input_thread_t *p_input )
 {
-    demux_t *p_demux = input_priv(p_input)->master->p_demux;
+    input_thread_private_t *priv = input_priv( p_input );
+    demux_t *p_demux = priv->master->p_demux;
 
     if( demux_TestAndClearFlags( p_demux, INPUT_UPDATE_META ) )
         InputUpdateMeta( p_input, p_demux );
@@ -2636,6 +2639,28 @@ static void UpdateGenericFromDemux( input_thread_t *p_input )
 
         if( !demux_Control( p_demux, DEMUX_GET_SIGNAL, &quality, &strength ) )
             input_SendEventSignal( p_input, quality, strength );
+    }
+
+    {
+        // Throttled: Demux() can call back into this once per ~20ms while
+        // a Menu() is active (its own non-blocking poll loop), and polling
+        // the demuxer's menu_state.mtx on every one of those cycles adds
+        // needless lock contention right where the menu OSD/timeout logic
+        // is also working. A quarter-second resolution is still far
+        // tighter than any human-perceptible menu duration or HTTP poll
+        // interval, so nothing meaningful is lost by checking less often.
+        vlc_tick_t now = vlc_tick_now();
+        if( now >= priv->i_menu_active_next_check )
+        {
+            priv->i_menu_active_next_check = now + VLC_TICK_FROM_MS(250);
+
+            bool menu_active = vlc_demux_IsMenuActive( p_demux );
+            if( menu_active != priv->b_menu_active )
+            {
+                priv->b_menu_active = menu_active;
+                input_SendEventMenu( p_input, menu_active );
+            }
+        }
     }
 }
 

@@ -125,6 +125,9 @@ typedef enum input_event_type_e
     /* At least one of "signal-quality" or "signal-strength" has changed */
     INPUT_EVENT_SIGNAL,
 
+    /* The demux's interactive-menu-active state has changed */
+    INPUT_EVENT_MENU,
+
     /* "bookmark" has changed */
     INPUT_EVENT_BOOKMARK,
 
@@ -332,6 +335,8 @@ struct vlc_input_event
         const struct input_stats_t *stats;
         /* INPUT_EVENT_SIGNAL */
         struct vlc_input_event_signal signal;
+        /* INPUT_EVENT_MENU */
+        bool menu_active;
         /* INPUT_EVENT_CACHE */
         float cache;
         /* INPUT_EVENT_VOUT */
@@ -506,6 +511,8 @@ typedef struct input_thread_private_t
     bool        is_running;
     bool        is_stopped;
     bool        b_recording;
+    bool        b_menu_active; /* last DEMUX_GET_MENU_ACTIVE value seen */
+    vlc_tick_t  i_menu_active_next_check; /* throttle for the above poll */
     float       rate;
 
     /* Playtime configuration and state */

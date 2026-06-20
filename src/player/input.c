@@ -1096,6 +1096,10 @@ input_thread_Events(input_thread_t *input_thread,
             input->recording = event->record;
             vlc_player_SendEvent(player, on_recording_changed, input->recording);
             break;
+        case INPUT_EVENT_MENU:
+            input->menu_active = event->menu_active;
+            vlc_player_SendEvent(player, on_menu_changed, input->menu_active);
+            break;
         case INPUT_EVENT_STATISTICS:
             input->stats = *event->stats;
             vlc_player_SendEvent(player, on_statistics_changed, &input->stats);
@@ -1248,6 +1252,7 @@ vlc_player_input_New(vlc_player_t *player, input_item_t *item)
     input->position = 0.f;
 
     input->recording = false;
+    input->menu_active = false;
 
     input->cache = 0.f;
     input->signal_quality = input->signal_strength = -1.f;
