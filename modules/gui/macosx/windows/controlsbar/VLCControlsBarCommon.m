@@ -436,11 +436,14 @@
         [NSString stringWithDuration:duration currentTime:_playerController.time negative:YES];
     const BOOL buffering = _playerController.playerState == VLC_PLAYER_STATE_STARTED;
 
-    self.timeSlider.hidden = !validInputItem;
-    self.timeSlider.enabled = duration >= 0 && !buffering && _playerController.seekable;
+    const BOOL seekable = _playerController.seekable;
+    self.timeSlider.hidden = !validInputItem || !seekable;
+    self.timeSlider.enabled = duration >= 0 && !buffering && seekable;
     self.timeSlider.indefinite = buffering;
     self.timeSlider.floatValue = validInputItem ? _playerController.position : 0.;
     self.timeSlider.mediaDuration = duration;
+    self.timeField.hidden = !seekable;
+    self.trailingTimeField.hidden = !seekable;
 
     [self.timeField setTime:timeString withRemainingTime:remainingTime];
     [self.trailingTimeField setTime:timeString withRemainingTime:remainingTime];
@@ -481,7 +484,10 @@
     const BOOL seekable = _playerController.seekable;
     const BOOL chapters = _playerController.numberOfChaptersForCurrentTitle > 0;
 
+    self.timeSlider.hidden = !_playerController.currentMedia || !seekable;
     self.timeSlider.enabled = seekable;
+    self.timeField.hidden = !seekable;
+    self.trailingTimeField.hidden = !seekable;
     self.forwardButton.enabled = seekable || _playQueueController.hasNextPlayQueueItem || chapters;
     self.backwardButton.enabled = seekable || _playQueueController.hasPreviousPlayQueueItem || chapters;
 
