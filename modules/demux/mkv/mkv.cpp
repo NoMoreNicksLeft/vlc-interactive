@@ -74,6 +74,13 @@ vlc_module_begin ()
             N_("Seek based on percent not time"),
             nullptr )
 
+    add_bool( "imkv-allow-seek", false,
+            N_("Allow manual seeking in interactive titles"),
+            N_("By default, the scrub bar and chapter menu are disabled "
+               "for interactive (branching) titles, since arbitrary "
+               "seeking desyncs interactive playback state. Enable this "
+               "to restore normal seeking, e.g. for debugging.") )
+
     add_bool( "mkv-use-dummy", false,
             N_("Dummy Elements"),
             N_("Read and discard unknown EBML elements (not good for broken files).") )
@@ -326,6 +333,11 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
     switch( i_query )
     {
         case DEMUX_CAN_SEEK:
+            if( !var_InheritBool( p_demux, "imkv-allow-seek" ) )
+            {
+                *va_arg( args, bool * ) = false;
+                return VLC_SUCCESS;
+            }
             return vlc_stream_vaControl( p_demux->s, i_query, args );
 
         case DEMUX_GET_ATTACHMENTS:
@@ -367,6 +379,8 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
             return VLC_SUCCESS;
 
         case DEMUX_SET_POSITION:
+            if( !var_InheritBool( p_demux, "imkv-allow-seek" ) )
+                return VLC_EGENERIC;
             if( p_sys->i_duration > 0)
             {
                 f = va_arg( args, double );
@@ -396,6 +410,8 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 
         case DEMUX_SET_TITLE:
             /* handle editions as titles */
+            if( !var_InheritBool( p_demux, "imkv-allow-seek" ) )
+                return VLC_EGENERIC;
             i_idx = va_arg( args, int );
             if(i_idx <  p_sys->titles.size() && p_sys->titles[i_idx]->i_seekpoint)
             {
@@ -420,6 +436,8 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
             return VLC_EGENERIC;
 
         case DEMUX_SET_SEEKPOINT:
+            if( !var_InheritBool( p_demux, "imkv-allow-seek" ) )
+                return VLC_EGENERIC;
             i_skp = va_arg( args, int );
 
             // TODO change the way it works with the << & >> buttons on the UI (+1/-1 instead of a number)
@@ -471,6 +489,8 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
             return VLC_SUCCESS;
 
         case DEMUX_SET_TIME:
+            if( !var_InheritBool( p_demux, "imkv-allow-seek" ) )
+                return VLC_EGENERIC;
             i64 = va_arg( args, vlc_tick_t );
             b = va_arg( args, int ); /* precise? */
             msg_Dbg(p_demux,"SET_TIME to %" PRId64, i64 );
