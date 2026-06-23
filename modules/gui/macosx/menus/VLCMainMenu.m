@@ -1127,7 +1127,7 @@ typedef NS_ENUM(NSInteger, VLCObjectType) {
         [menuItem setState: x == selectedIndex ? NSOnState : NSOffState];
         [_chapterMenu addItem:menuItem];
     }
-    _chapter.enabled = count > 0 ? YES : NO;
+    _chapter.enabled = count > 0 && _playerController.seekable;
 }
 
 - (void)selectTitle:(NSMenuItem *)sender
